@@ -75,49 +75,10 @@ const getDifferenceDetails = (
 };
 
 export function useFileComparison() {
-  const [localFiles, setLocalFiles] = useState<File[]>([]);
-  const [inplayFiles, setInplayFiles] = useState<File[]>([]);
   const [parsedFiles, setParsedFiles] = useState<CsvFile[]>([]);
+  const [originalFiles, setOriginalFiles] = useState<{ local: File[], inplay: File[] }>({ local: [], inplay: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const processFiles = useCallback(async (files: FileList, source: 'local' | 'inplay') => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const fileArray = Array.from(files);
-      
-      if (source === 'local') {
-        setLocalFiles(fileArray);
-      } else {
-        setInplayFiles(fileArray);
-      }
-
-      const processed = await Promise.all(
-        fileArray.map((file) => {
-          return new Promise<CsvFile>((resolve, reject) => {
-            Papa.parse(file, {
-              complete: (results) => {
-                resolve({
-                  name: file.name,
-                  content: results.data as string[][],
-                  source,
-                });
-              },
-              error: reject,
-            });
-          });
-        })
-      );
-
-      setParsedFiles(prev => [...prev, ...processed]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process files');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   const calculateStats = (localFiles: CsvFile[], inplayFiles: CsvFile[]): Stats => {
     const gatewayStats: RowCounts = {};
@@ -131,13 +92,34 @@ export function useFileComparison() {
         const gateway = isFullVoucher ? 'Voucher' : 
                        (rawGateway && rawGateway.trim() !== '' ? rawGateway : 'unknown');
         const actionType = row[8] || 'unknown';
+        const amount = parseFloat(row[13]) || 0;    // charged_amount
+        const currencyCode = row[14] || 'unknown';  // currency_iso
 
-        gatewayStats[gateway] = gatewayStats[gateway] || { local: 0, inplay: 0, difference: 0 };
-        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || 
-          { local: 0, inplay: 0, difference: 0 };
+        // Инициализация статистики если не существует
+        gatewayStats[gateway] = gatewayStats[gateway] || { 
+          local: 0, 
+          inplay: 0, 
+          difference: 0,
+          amounts: {} 
+        };
+        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
+          local: 0, 
+          inplay: 0, 
+          difference: 0,
+          amounts: {} 
+        };
 
+        // Инициализация сумм по валютам
+        gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
+          { local: 0, inplay: 0 };
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
+          actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
+
+        // Увеличение счетчиков и сумм
         gatewayStats[gateway].local++;
         actionTypeStats[`${gateway}|${actionType}`].local++;
+        gatewayStats[gateway].amounts[currencyCode].local += amount;
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].local += amount;
       });
     });
 
@@ -148,13 +130,34 @@ export function useFileComparison() {
         const gateway = originalGateway === 'Voucher100' ? 'Voucher' : 
                        (originalGateway && originalGateway.trim() !== '' ? originalGateway : 'unknown');
         const actionType = row[9] || 'unknown'; // J
+        const amount = parseFloat(row[5]) || 0;    // F - сумма
+        const currencyCode = row[6] || 'unknown';  // G - валюта
 
-        gatewayStats[gateway] = gatewayStats[gateway] || { local: 0, inplay: 0, difference: 0 };
-        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || 
-          { local: 0, inplay: 0, difference: 0 };
+        // Инициализация если не существует
+        gatewayStats[gateway] = gatewayStats[gateway] || { 
+          local: 0, 
+          inplay: 0, 
+          difference: 0,
+          amounts: {} 
+        };
+        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
+          local: 0, 
+          inplay: 0, 
+          difference: 0,
+          amounts: {} 
+        };
 
+        // Инициализация сумм по валютам
+        gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
+          { local: 0, inplay: 0 };
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
+          actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
+
+        // Увеличение счетчиков и сумм
         gatewayStats[gateway].inplay++;
         actionTypeStats[`${gateway}|${actionType}`].inplay++;
+        gatewayStats[gateway].amounts[currencyCode].inplay += amount;
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].inplay += amount;
       });
     });
 
@@ -177,11 +180,52 @@ export function useFileComparison() {
     };
   };
 
-  const stats = useMemo(() => {
-    const localFiles = parsedFiles.filter(f => f.source === 'local');
-    const inplayFiles = parsedFiles.filter(f => f.source === 'inplay');
-    return calculateStats(localFiles, inplayFiles);
+  const localFiles = useMemo(() => {
+    return parsedFiles.filter(f => f.source === 'local');
   }, [parsedFiles]);
+
+  const inplayFiles = useMemo(() => {
+    return parsedFiles.filter(f => f.source === 'inplay');
+  }, [parsedFiles]);
+
+  const stats = useMemo(() => {
+    return calculateStats(localFiles, inplayFiles);
+  }, [localFiles, inplayFiles]);
+
+  const processFiles = useCallback(async (files: FileList, source: 'local' | 'inplay') => {
+    setOriginalFiles(prev => ({ ...prev, [source]: Array.from(files) }));
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const fileArray = Array.from(files);
+      const processed = await Promise.all(
+        fileArray.map((file) => {
+          return new Promise<CsvFile>((resolve, reject) => {
+            Papa.parse(file, {
+              complete: (results) => {
+                resolve({
+                  name: file.name,
+                  content: results.data as string[][],
+                  source
+                });
+              },
+              error: reject,
+            });
+          });
+        })
+      );
+
+      setParsedFiles(prev => {
+        const filtered = prev.filter(f => f.source !== source);
+        return [...filtered, ...processed];
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process files');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const getDifference = useCallback((type: string, isGateway: boolean, gateway?: string) => {
     const value = isGateway ? type : `${gateway}|${type}`;
@@ -189,13 +233,17 @@ export function useFileComparison() {
   }, [parsedFiles]);
 
   return {
+    processFiles,
     localFiles,
     inplayFiles,
-    parsedFiles,
     isLoading,
     error,
     stats,
-    processFiles,
-    getDifference
+    parsedFiles,
+    getDifference,
+    selectedFiles: {
+      local: originalFiles.local,
+      inplay: originalFiles.inplay
+    }
   };
 } 

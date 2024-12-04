@@ -5,7 +5,6 @@ import { FileUpload } from './components/FileUpload/FileUpload';
 import { useFileComparison } from './hooks/useFileComparison';
 import { AppContainer, Title, Section } from './styles/App.styles';
 import { Stats } from './components/Stats/Stats';
-import { ParsedFile } from './types/files.ts';
 import { RowCounts } from './types/csv';
 
 export interface StatsProps {
@@ -13,7 +12,6 @@ export interface StatsProps {
     localRows: string[][];
     inplayRows: string[][];
   };
-  parsedFiles: ParsedFile[];
   byGateway: RowCounts;
   byActionType: RowCounts;
   totalRows: {
@@ -24,7 +22,7 @@ export interface StatsProps {
 }
 
 function App() {
-  const { processFiles, localFiles, inplayFiles, isLoading, error, stats, parsedFiles, getDifference } = useFileComparison();
+  const { processFiles, isLoading, error, stats, parsedFiles, getDifference, selectedFiles } = useFileComparison();
 
   return (
     <ThemeProvider theme={theme}>
@@ -37,7 +35,7 @@ function App() {
           <FileUpload 
             onFilesSelected={(files) => processFiles(files, 'local')}
             source="local"
-            selectedFiles={localFiles}
+            selectedFiles={selectedFiles.local}
           />
         </Section>
 
@@ -46,7 +44,7 @@ function App() {
           <FileUpload 
             onFilesSelected={(files) => processFiles(files, 'inplay')}
             source="inplay"
-            selectedFiles={inplayFiles}
+            selectedFiles={selectedFiles.inplay}
           />
         </Section>
 

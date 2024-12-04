@@ -10,12 +10,20 @@ export interface ComparisonResult {
   matches: string[][];
 }
 
-export interface RowCounts {
-  [key: string]: {
-    local: number;
-    inplay: number;
-    difference: number;
+export interface RowStats {
+  local: number;
+  inplay: number;
+  difference: number;
+  amounts: {
+    [currencyCode: string]: {
+      local: number;
+      inplay: number;
+    };
   };
+}
+
+export interface RowCounts {
+  [key: string]: RowStats;
 }
 
 export interface Stats {
