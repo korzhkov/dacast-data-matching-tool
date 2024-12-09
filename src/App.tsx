@@ -2,10 +2,13 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { FileUpload } from './components/FileUpload/FileUpload';
-import { useFileComparison } from './hooks/useFileComparison';
+import { useFileComparison, calculateStats, getDifferenceDetails } from './hooks/useFileComparison';
+import { useFileFilter } from './hooks/useFileFilter';
 import { AppContainer, Title, Section } from './styles/App.styles';
 import { Stats } from './components/Stats/Stats';
 import { RowCounts } from './types/csv';
+import { FileFilter } from './components/FileFilter/FileFilter';
+import { useMemo, useCallback } from 'react';
 
 export interface StatsProps {
   getDifference: (type: string, isGateway: boolean) => {
@@ -21,8 +24,44 @@ export interface StatsProps {
   };
 }
 
+const FILTER_FIELDS = [
+  { 
+    label: 'Merchant ID', 
+    index: {
+      local: 1,    // B колонка в local
+      inplay: 0    // A колонка в inplay
+    }
+  },
+  { 
+    label: 'Event/Asset ID', 
+    index: {
+      local: 10,    // K колонка в local
+      inplay: 2   // C колонка в inplay
+    }
+  },
+  { 
+    label: 'Gateway', 
+    index: {
+      local: 7,    // H колонка в local
+      inplay: 10   // K колонка в inplay
+    }
+  }
+];
+
 function App() {
-  const { processFiles, isLoading, error, stats, parsedFiles, getDifference, selectedFiles } = useFileComparison();
+  const { processFiles, isLoading, error, stats: originalStats, parsedFiles, getDifference: originalGetDifference, selectedFiles } = useFileComparison();
+  const { filteredFiles, applyFilter, clearFilter } = useFileFilter(parsedFiles);
+
+  // Создаем отфильтрованные версии stats и getDifference
+  const stats = useMemo(() => {
+    const localFiles = filteredFiles.filter(f => f.source === 'local');
+    const inplayFiles = filteredFiles.filter(f => f.source === 'inplay');
+    return calculateStats(localFiles, inplayFiles);
+  }, [filteredFiles]);
+
+  const getDifference = useCallback((type: string, isGateway: boolean) => {
+    return getDifferenceDetails(filteredFiles, type, isGateway);
+  }, [filteredFiles]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -48,7 +87,13 @@ function App() {
           />
         </Section>
 
-        {parsedFiles.length > 0 && (
+        <FileFilter 
+          fields={FILTER_FIELDS}
+          onApplyFilter={applyFilter}
+          onClearFilter={clearFilter}
+        />
+
+        {filteredFiles.length > 0 && (
           <Section>
             <Stats 
               getDifference={getDifference}

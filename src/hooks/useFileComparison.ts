@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import Papa from 'papaparse';
 import { CsvFile, Stats, RowCounts } from '../types/csv';
 
-const getDifferenceDetails = (
+export const getDifferenceDetails = (
   files: CsvFile[], 
   value: string,
   isGateway: boolean
@@ -74,111 +74,111 @@ const getDifferenceDetails = (
   }
 };
 
+export const calculateStats = (localFiles: CsvFile[], inplayFiles: CsvFile[]): Stats => {
+  const gatewayStats: RowCounts = {};
+  const actionTypeStats: RowCounts = {};
+
+  // Обработка локальных файлов
+  localFiles.forEach(file => {
+    file.content.slice(1).forEach(row => {
+      const isFullVoucher = row[25]?.toString() === '100';
+      const rawGateway = row[7];
+      const gateway = isFullVoucher ? 'Voucher' : 
+                     (rawGateway && rawGateway.trim() !== '' ? rawGateway : 'unknown');
+      const actionType = row[8] || 'unknown';
+      const amount = parseFloat(row[13]) || 0;    // charged_amount
+      const currencyCode = row[14] || 'unknown';  // currency_iso
+
+      // Инициализация статистики если не существует
+      gatewayStats[gateway] = gatewayStats[gateway] || { 
+        local: 0, 
+        inplay: 0, 
+        difference: 0,
+        amounts: {} 
+      };
+      actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
+        local: 0, 
+        inplay: 0, 
+        difference: 0,
+        amounts: {} 
+      };
+
+      // Инициализация сумм по валютам
+      gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
+        { local: 0, inplay: 0 };
+      actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
+
+      // Увеличение счетчиков и сумм
+      gatewayStats[gateway].local++;
+      actionTypeStats[`${gateway}|${actionType}`].local++;
+      gatewayStats[gateway].amounts[currencyCode].local += amount;
+      actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].local += amount;
+    });
+  });
+
+  // Обработка inplay файлов
+  inplayFiles.forEach(file => {
+    file.content.slice(1).forEach(row => {
+      const originalGateway = row[10]; // K
+      const gateway = originalGateway === 'Voucher100' ? 'Voucher' : 
+                     (originalGateway && originalGateway.trim() !== '' ? originalGateway : 'unknown');
+      const actionType = row[9] || 'unknown'; // J
+      const amount = parseFloat(row[5]) || 0;    // F - сумма
+      const currencyCode = row[6] || 'unknown';  // G - валюта
+
+      // Инициализация если не существует
+      gatewayStats[gateway] = gatewayStats[gateway] || { 
+        local: 0, 
+        inplay: 0, 
+        difference: 0,
+        amounts: {} 
+      };
+      actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
+        local: 0, 
+        inplay: 0, 
+        difference: 0,
+        amounts: {} 
+      };
+
+      // Инициализация сумм по валютам
+      gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
+        { local: 0, inplay: 0 };
+      actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
+        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
+
+      // Увеличение счетчиков и сумм
+      gatewayStats[gateway].inplay++;
+      actionTypeStats[`${gateway}|${actionType}`].inplay++;
+      gatewayStats[gateway].amounts[currencyCode].inplay += amount;
+      actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].inplay += amount;
+    });
+  });
+
+  // Подсчет разницы
+  Object.values(gatewayStats).forEach(stat => {
+    stat.difference = Math.abs(stat.local - stat.inplay);
+  });
+  Object.values(actionTypeStats).forEach(stat => {
+    stat.difference = Math.abs(stat.local - stat.inplay);
+  });
+
+  return {
+    byGateway: gatewayStats,
+    byActionType: actionTypeStats,
+    totalRows: {
+      local: localFiles.reduce((sum, file) => sum + file.content.length - 1, 0),
+      inplay: inplayFiles.reduce((sum, file) => sum + file.content.length - 1, 0),
+      difference: 0
+    }
+  };
+};
+
 export function useFileComparison() {
   const [parsedFiles, setParsedFiles] = useState<CsvFile[]>([]);
   const [originalFiles, setOriginalFiles] = useState<{ local: File[], inplay: File[] }>({ local: [], inplay: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const calculateStats = (localFiles: CsvFile[], inplayFiles: CsvFile[]): Stats => {
-    const gatewayStats: RowCounts = {};
-    const actionTypeStats: RowCounts = {};
-
-    // Обработка локальных файлов
-    localFiles.forEach(file => {
-      file.content.slice(1).forEach(row => {
-        const isFullVoucher = row[25]?.toString() === '100';
-        const rawGateway = row[7];
-        const gateway = isFullVoucher ? 'Voucher' : 
-                       (rawGateway && rawGateway.trim() !== '' ? rawGateway : 'unknown');
-        const actionType = row[8] || 'unknown';
-        const amount = parseFloat(row[13]) || 0;    // charged_amount
-        const currencyCode = row[14] || 'unknown';  // currency_iso
-
-        // Инициализация статистики если не существует
-        gatewayStats[gateway] = gatewayStats[gateway] || { 
-          local: 0, 
-          inplay: 0, 
-          difference: 0,
-          amounts: {} 
-        };
-        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
-          local: 0, 
-          inplay: 0, 
-          difference: 0,
-          amounts: {} 
-        };
-
-        // Инициализация сумм по валютам
-        gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
-          { local: 0, inplay: 0 };
-        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
-          actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
-
-        // Увеличение счетчиков и сумм
-        gatewayStats[gateway].local++;
-        actionTypeStats[`${gateway}|${actionType}`].local++;
-        gatewayStats[gateway].amounts[currencyCode].local += amount;
-        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].local += amount;
-      });
-    });
-
-    // Обработка inplay файлов
-    inplayFiles.forEach(file => {
-      file.content.slice(1).forEach(row => {
-        const originalGateway = row[10]; // K
-        const gateway = originalGateway === 'Voucher100' ? 'Voucher' : 
-                       (originalGateway && originalGateway.trim() !== '' ? originalGateway : 'unknown');
-        const actionType = row[9] || 'unknown'; // J
-        const amount = parseFloat(row[5]) || 0;    // F - сумма
-        const currencyCode = row[6] || 'unknown';  // G - валюта
-
-        // Инициализация если не существует
-        gatewayStats[gateway] = gatewayStats[gateway] || { 
-          local: 0, 
-          inplay: 0, 
-          difference: 0,
-          amounts: {} 
-        };
-        actionTypeStats[`${gateway}|${actionType}`] = actionTypeStats[`${gateway}|${actionType}`] || { 
-          local: 0, 
-          inplay: 0, 
-          difference: 0,
-          amounts: {} 
-        };
-
-        // Инициализация сумм по валютам
-        gatewayStats[gateway].amounts[currencyCode] = gatewayStats[gateway].amounts[currencyCode] || 
-          { local: 0, inplay: 0 };
-        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] = 
-          actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode] || { local: 0, inplay: 0 };
-
-        // Увеличение счетчиков и сумм
-        gatewayStats[gateway].inplay++;
-        actionTypeStats[`${gateway}|${actionType}`].inplay++;
-        gatewayStats[gateway].amounts[currencyCode].inplay += amount;
-        actionTypeStats[`${gateway}|${actionType}`].amounts[currencyCode].inplay += amount;
-      });
-    });
-
-    // Подсчет разницы
-    Object.values(gatewayStats).forEach(stat => {
-      stat.difference = Math.abs(stat.local - stat.inplay);
-    });
-    Object.values(actionTypeStats).forEach(stat => {
-      stat.difference = Math.abs(stat.local - stat.inplay);
-    });
-
-    return {
-      byGateway: gatewayStats,
-      byActionType: actionTypeStats,
-      totalRows: {
-        local: localFiles.reduce((sum, file) => sum + file.content.length - 1, 0),
-        inplay: inplayFiles.reduce((sum, file) => sum + file.content.length - 1, 0),
-        difference: 0
-      }
-    };
-  };
 
   const localFiles = useMemo(() => {
     return parsedFiles.filter(f => f.source === 'local');
