@@ -50,7 +50,7 @@ const FILTER_FIELDS = [
 
 function App() {
   const { processFiles, isLoading, error, stats: originalStats, parsedFiles, getDifference: originalGetDifference, selectedFiles } = useFileComparison();
-  const { filteredFiles, applyFilter, clearFilter } = useFileFilter(parsedFiles);
+  const { filteredFiles, applyFilter, applyDateFilter, clearFilter } = useFileFilter(parsedFiles);
 
   // Создаем отфильтрованные версии stats и getDifference
   const stats = useMemo(() => {
@@ -90,6 +90,7 @@ function App() {
         <FileFilter 
           fields={FILTER_FIELDS}
           onApplyFilter={applyFilter}
+          onApplyDateFilter={applyDateFilter}
           onClearFilter={clearFilter}
         />
 
