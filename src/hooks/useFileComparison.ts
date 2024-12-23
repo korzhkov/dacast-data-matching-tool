@@ -2,6 +2,12 @@ import { useState, useCallback, useMemo } from 'react';
 import Papa from 'papaparse';
 import { CsvFile, Stats, RowCounts } from '../types/csv';
 
+const isFullVoucher = (value: string | undefined) => {
+  if (!value) return false;
+  const normalized = value.toString().trim();
+  return normalized === '100' || normalized === '100.00';
+};
+
 export const getDifferenceDetails = (
   files: CsvFile[], 
   value: string,
@@ -12,8 +18,8 @@ export const getDifferenceDetails = (
       .filter(f => f.source === 'local')
       .flatMap(file => file.content.slice(1))
       .filter(row => {
-        const isFullVoucher = row[25]?.toString() === '100';
-        if (isFullVoucher) return value === 'Voucher';
+        const isVoucher = isFullVoucher(row[25]);
+        if (isVoucher) return value === 'Voucher';
         if (value === 'unknown') return !row[7] || row[7].trim() === '';
         return row[7] === value;
       });
@@ -45,8 +51,8 @@ export const getDifferenceDetails = (
       .filter(f => f.source === 'local')
       .flatMap(file => file.content.slice(1))
       .filter(row => {
-        const isFullVoucher = row[25]?.toString() === '100';
-        const rowGateway = isFullVoucher ? 'Voucher' : (row[7] || 'unknown');
+        const isVoucher = isFullVoucher(row[25]);
+        const rowGateway = isVoucher ? 'Voucher' : (row[7] || 'unknown');
         const rowActionType = row[8] || 'unknown';
         return rowGateway === gateway && rowActionType === actionType;
       });
@@ -81,9 +87,9 @@ export const calculateStats = (localFiles: CsvFile[], inplayFiles: CsvFile[]): S
   // Обработка локальных файлов
   localFiles.forEach(file => {
     file.content.slice(1).forEach(row => {
-      const isFullVoucher = row[25]?.toString() === '100';
+      const isVoucher = isFullVoucher(row[25]);
       const rawGateway = row[7];
-      const gateway = isFullVoucher ? 'Voucher' : 
+      const gateway = isVoucher ? 'Voucher' : 
                      (rawGateway && rawGateway.trim() !== '' ? rawGateway : 'unknown');
       const actionType = row[8] || 'unknown';
       const amount = parseFloat(row[13]) || 0;    // charged_amount

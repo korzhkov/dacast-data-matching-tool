@@ -59,8 +59,9 @@ function App() {
     return calculateStats(localFiles, inplayFiles);
   }, [filteredFiles]);
 
-  const getDifference = useCallback((type: string, isGateway: boolean) => {
-    return getDifferenceDetails(filteredFiles, type, isGateway);
+  const getDifference = useCallback((type: string, isGateway: boolean, gateway?: string) => {
+    const value = isGateway ? type : `${gateway}|${type}`;
+    return getDifferenceDetails(filteredFiles, value, isGateway);
   }, [filteredFiles]);
 
   return (

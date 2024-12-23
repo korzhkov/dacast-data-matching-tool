@@ -80,8 +80,8 @@ export function FileFilter({ onApplyFilter, onApplyDateFilter, onClearFilter, fi
   const [filterValue, setFilterValue] = useState('');
   
   // Тестовые даты для отладки
-  const [startDate, setStartDate] = useState('2024-09-01');
-  const [endDate, setEndDate] = useState('2024-09-15');
+  const [startDate, setStartDate] = useState('2024-11-01');
+  const [endDate, setEndDate] = useState('2024-11-30');
 
   const handleApply = () => {
     onApplyFilter(selectedField.index, filterValue);
