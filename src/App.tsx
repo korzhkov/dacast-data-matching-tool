@@ -49,17 +49,17 @@ const FILTER_FIELDS = [
 ];
 
 function App() {
-  const { processFiles, isLoading, error, stats: originalStats, parsedFiles, getDifference: originalGetDifference, selectedFiles } = useFileComparison();
+  const { processFiles, isLoading, error, stats, parsedFiles, getDifference, selectedFiles, debugInfo } = useFileComparison();
   const { filteredFiles, applyFilter, applyDateFilter, clearFilter } = useFileFilter(parsedFiles);
 
   // Создаем отфильтрованные версии stats и getDifference
-  const stats = useMemo(() => {
+  const filteredStats = useMemo(() => {
     const localFiles = filteredFiles.filter(f => f.source === 'local');
     const inplayFiles = filteredFiles.filter(f => f.source === 'inplay');
     return calculateStats(localFiles, inplayFiles);
   }, [filteredFiles]);
 
-  const getDifference = useCallback((type: string, isGateway: boolean, gateway?: string) => {
+  const handleDifference = useCallback((type: string, isGateway: boolean, gateway?: string) => {
     const value = isGateway ? type : `${gateway}|${type}`;
     return getDifferenceDetails(filteredFiles, value, isGateway);
   }, [filteredFiles]);
@@ -71,21 +71,34 @@ function App() {
         <Title>Data Matching Tool</Title>
         
         <Section>
-          <h2>Local Files</h2>
-          <FileUpload 
-            onFilesSelected={(files) => processFiles(files, 'local')}
-            source="local"
-            selectedFiles={selectedFiles.local}
-          />
-        </Section>
-
-        <Section>
           <h2>InPlay Files</h2>
           <FileUpload 
             onFilesSelected={(files) => processFiles(files, 'inplay')}
             source="inplay"
             selectedFiles={selectedFiles.inplay}
           />
+          
+          {/* Debug Info */}
+          {debugInfo.inplayDates && (
+            <div style={{ 
+              margin: '20px', 
+              padding: '10px', 
+              border: '1px solid #ccc', 
+              borderRadius: '4px',
+              backgroundColor: '#f5f5f5',
+              fontFamily: 'monospace',
+              fontSize: '12px'
+            }}>
+              <h4>Debug Info:</h4>
+              <p>InPlay Date Range:</p>
+              <pre>Start: {debugInfo.inplayDates.start}</pre>
+              <pre>End: {debugInfo.inplayDates.end}</pre>
+              <p>SQL Query:</p>
+              <pre>Start: {debugInfo.sqlQuery?.start}</pre>
+              <pre>End: {debugInfo.sqlQuery?.end}</pre>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>Query: {debugInfo.sqlQuery?.query}</pre>
+            </div>
+          )}
         </Section>
 
         <FileFilter 
@@ -98,10 +111,11 @@ function App() {
         {filteredFiles.length > 0 && (
           <Section>
             <Stats 
-              getDifference={getDifference}
-              byGateway={stats.byGateway}
-              byActionType={stats.byActionType}
-              totalRows={stats.totalRows}
+              getDifference={handleDifference}
+              byGateway={filteredStats.byGateway}
+              byActionType={filteredStats.byActionType}
+              totalRows={filteredStats.totalRows}
+              parsedFiles={filteredFiles}
             />
           </Section>
         )}

@@ -2,6 +2,15 @@ import { useState, useCallback, useMemo } from 'react';
 import Papa from 'papaparse';
 import { CsvFile, Stats, RowCounts } from '../types/csv';
 
+interface DebugInfo {
+  inplayDates: { start: string; end: string } | null;
+  sqlQuery: { 
+    start: string; 
+    end: string;
+    query: string;
+  } | null;
+}
+
 const isFullVoucher = (value: string | undefined) => {
   if (!value) return false;
   const normalized = value.toString().trim();
@@ -180,11 +189,140 @@ export const calculateStats = (localFiles: CsvFile[], inplayFiles: CsvFile[]): S
   };
 };
 
+interface FetchLocalDataParams {
+  startDate: string;
+  endDate: string;
+}
+
+async function fetchLocalData({ startDate, endDate }: FetchLocalDataParams): Promise<CsvFile> {
+  console.log('Fetching local data...');
+  
+  const response = await fetch(
+    `http://localhost:3001/api/local-data?startDate=${startDate}&endDate=${endDate}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch local data');
+  }
+  
+  const data = await response.json();
+  console.log('Received data:', {
+    rowCount: data.content.length - 1,  // -1 для заголовков
+    firstRow: data.content[1],
+    lastRow: data.content[data.content.length - 1]
+  });
+  
+  return data;
+}
+
 export function useFileComparison() {
   const [parsedFiles, setParsedFiles] = useState<CsvFile[]>([]);
-  const [originalFiles, setOriginalFiles] = useState<{ local: File[], inplay: File[] }>({ local: [], inplay: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo>({ inplayDates: null, sqlQuery: null });
+  const [originalFiles, setOriginalFiles] = useState<{
+    inplay: File[];
+  }>({
+    inplay: []
+  });
+
+  // Получаем крайние даты из InPlay файла
+  const getInplayDateRange = (files: CsvFile[]): { startDate: string, endDate: string } | null => {
+    const inplayFiles = files.filter(f => f.source === 'inplay');
+    if (inplayFiles.length === 0) return null;
+
+    const dates = inplayFiles
+      .flatMap(file => file.content.slice(1))
+      .map(row => row[21])
+      .filter(Boolean)
+      .map(dateStr => new Date(dateStr));
+
+    if (dates.length === 0) return null;
+
+    // Находим минимальную и максимальную даты
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+    // Сохраняем оригинальные даты для отладки
+    setDebugInfo(prev => ({
+      ...prev,
+      inplayDates: {
+        start: minDate.toLocaleString(),
+        end: maxDate.toLocaleString()
+      }
+    }));
+
+    // Устанавливаем точное время для начала и конца периода
+    const startDate = new Date(minDate);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(maxDate);
+    endDate.setDate(endDate.getDate() + 1);
+    endDate.setHours(0, 0, 0, 0);
+
+    const result = {
+      startDate: minDate.getFullYear() + '-' + 
+                 String(minDate.getMonth() + 1).padStart(2, '0') + '-' +
+                 String(minDate.getDate()).padStart(2, '0'),
+      endDate: maxDate.getFullYear() + '-' + 
+               String(maxDate.getMonth() + 1).padStart(2, '0') + '-' +
+               String(maxDate.getDate() + 1).padStart(2, '0')
+    };
+
+    // Сохраняем SQL даты для отладки
+    setDebugInfo(prev => ({
+      ...prev,
+      sqlQuery: {
+        start: `${result.startDate} 00:00:00`,
+        end: `${result.endDate} 00:00:00`,
+        query: `SELECT * FROM transaction_lines WHERE created_at >= '${result.startDate} 00:00:00' AND created_at < '${result.endDate} 00:00:00' ORDER BY created_at`
+      }
+    }));
+
+    return result;
+  };
+
+  const processFiles = useCallback(async (files: FileList, source: 'inplay') => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const filesArray = Array.from(files);
+      setOriginalFiles(prev => ({ ...prev, [source]: filesArray }));
+
+      const processed = await Promise.all(
+        filesArray.map(async file => {
+          const text = await file.text();
+          const { data } = Papa.parse(text);
+          return { name: file.name, content: data as string[][], source };
+        })
+      );
+
+      setParsedFiles(prev => {
+        const filtered = prev.filter(f => f.source !== source);
+        const newFiles = [...filtered, ...processed];
+
+        // После загрузки InPlay файлов автоматически получаем локальные данные
+        const dateRange = getInplayDateRange(newFiles);
+        if (dateRange) {
+          fetchLocalData(dateRange).then(localData => {
+            setParsedFiles(current => {
+              const withoutLocal = current.filter(f => f.source !== 'local');
+              return [...withoutLocal, localData];
+            });
+          }).catch(err => {
+            setError(err instanceof Error ? err.message : 'Failed to fetch local data');
+          });
+        }
+
+        return newFiles;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process files');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const localFiles = useMemo(() => {
     return parsedFiles.filter(f => f.source === 'local');
@@ -198,41 +336,6 @@ export function useFileComparison() {
     return calculateStats(localFiles, inplayFiles);
   }, [localFiles, inplayFiles]);
 
-  const processFiles = useCallback(async (files: FileList, source: 'local' | 'inplay') => {
-    setOriginalFiles(prev => ({ ...prev, [source]: Array.from(files) }));
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const fileArray = Array.from(files);
-      const processed = await Promise.all(
-        fileArray.map((file) => {
-          return new Promise<CsvFile>((resolve, reject) => {
-            Papa.parse(file, {
-              complete: (results) => {
-                resolve({
-                  name: file.name,
-                  content: results.data as string[][],
-                  source
-                });
-              },
-              error: reject,
-            });
-          });
-        })
-      );
-
-      setParsedFiles(prev => {
-        const filtered = prev.filter(f => f.source !== source);
-        return [...filtered, ...processed];
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process files');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   const getDifference = useCallback((type: string, isGateway: boolean, gateway?: string) => {
     const value = isGateway ? type : `${gateway}|${type}`;
     return getDifferenceDetails(parsedFiles, value, isGateway);
@@ -240,16 +343,14 @@ export function useFileComparison() {
 
   return {
     processFiles,
-    localFiles,
-    inplayFiles,
     isLoading,
     error,
     stats,
     parsedFiles,
     getDifference,
     selectedFiles: {
-      local: originalFiles.local,
       inplay: originalFiles.inplay
-    }
-  };
+    },
+    debugInfo
+  } as const;
 } 
