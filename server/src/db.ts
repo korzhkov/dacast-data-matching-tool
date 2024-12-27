@@ -53,16 +53,16 @@ export async function getLocalData(startDate: string, endDate: string) {
     SELECT 
       ${headers.join(', ')}
     FROM transaction_lines
-    WHERE created_at >= ? AND created_at < ?
+    WHERE created_at >= ? AND created_at <= ?
     ORDER BY created_at
-  `, [`${startDate} 00:00:00`, `${endDate} 00:00:00`]);
+  `, [startDate, endDate]);
   
   console.log('Raw DB result:', {
     rowCount: (rows as any[]).length,
     firstRow: (rows as any[])[0],
     sql: `SELECT * FROM transaction_lines 
-          WHERE created_at >= DATE(${startDate}) 
-          AND created_at < DATE_ADD(DATE(${endDate}), INTERVAL 1 DAY)`
+          WHERE created_at >= '${startDate}'
+          AND created_at <= '${endDate}'`
   });
 
   // Преобразуем результат в формат CsvFile

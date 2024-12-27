@@ -73,7 +73,7 @@ function App() {
         <Section>
           <h2>InPlay Files</h2>
           <FileUpload 
-            onFilesSelected={(files) => processFiles(files, 'inplay')}
+            onFilesSelected={(files, dateFormat) => processFiles(files, dateFormat)}
             source="inplay"
             selectedFiles={selectedFiles.inplay}
           />
@@ -106,6 +106,10 @@ function App() {
           onApplyFilter={applyFilter}
           onApplyDateFilter={applyDateFilter}
           onClearFilter={clearFilter}
+          initialDates={{
+            start: debugInfo.sqlQuery?.start?.split(' ')[0] || '',
+            end: debugInfo.sqlQuery?.end?.split(' ')[0] || ''
+          }}
         />
 
         {filteredFiles.length > 0 && (

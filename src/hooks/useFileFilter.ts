@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CsvFile } from '../types/csv';
+import { CsvFile, DateFormat } from '../types/csv';
 
 interface FieldIndex {
   local: number;
@@ -14,6 +14,27 @@ interface FileFilter {
     end: string;
   };
 }
+
+// Копируем функцию parseDateString из useFileComparison
+const parseDateString = (dateStr: string | undefined, format: DateFormat) => {
+  if (!dateStr) return new Date(0); // или null, в зависимости от логики
+  
+  const [datePart, timePart] = dateStr.split(' ');
+  if (!datePart || !timePart) return new Date(0);
+  
+  const [first, second, year] = datePart.split('/');
+  if (!first || !second || !year) return new Date(0);
+  
+  try {
+    const date = format === 'DD/MM/YYYY' 
+      ? new Date(`${year}-${second}-${first} ${timePart}`)
+      : new Date(`${year}-${first}-${second} ${timePart}`);
+    
+    return isNaN(date.getTime()) ? new Date(0) : date;
+  } catch {
+    return new Date(0);
+  }
+};
 
 export function useFileFilter(files: CsvFile[]) {
   const [filter, setFilter] = useState<FileFilter>({});
@@ -39,14 +60,14 @@ export function useFileFilter(files: CsvFile[]) {
 
         // Применяем фильтр по дате если он задан
         if (filter.dateRange) {
-          // Local: колонка Q (индекс 16)
-          // Inplay: колонка V (индекс 21)
           const dateIndex = file.source === 'local' ? 16 : 21;
-          
           const rowDateStr = row[dateIndex];
           
-          // Преобразуем строку даты из формата MM/DD/YYYY HH:MM:SS AM|PM в объект Date
-          const rowDate = new Date(rowDateStr);
+          // Используем формат даты из файла
+          const rowDate = file.source === 'inplay' 
+            ? parseDateString(rowDateStr, file.dateFormat)
+            : new Date(rowDateStr); // для local данных формат уже правильный
+
           rowDate.setHours(0, 0, 0, 0);
 
           const startDate = new Date(filter.dateRange.start);

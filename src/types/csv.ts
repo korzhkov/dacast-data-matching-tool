@@ -1,7 +1,10 @@
+export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY';
+
 export interface CsvFile {
   name: string;
   content: string[][];
   source: 'local' | 'inplay';
+  dateFormat: DateFormat;
 }
 
 export interface ComparisonResult {

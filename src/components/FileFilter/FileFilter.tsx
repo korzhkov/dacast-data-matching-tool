@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 
 interface FieldIndex {
@@ -16,6 +16,10 @@ interface FileFilterProps {
   onApplyFilter: (field: FieldIndex, value: string) => void;
   onApplyDateFilter: (start: string, end: string) => void;
   onClearFilter: () => void;
+  initialDates?: {
+    start: string;
+    end: string;
+  };
 }
 
 const FilterContainer = styled.div`
@@ -75,13 +79,19 @@ const DateInputGroup = styled.div`
   }
 `;
 
-export function FileFilter({ onApplyFilter, onApplyDateFilter, onClearFilter, fields }: FileFilterProps) {
+export function FileFilter({ onApplyFilter, onApplyDateFilter, onClearFilter, fields, initialDates }: FileFilterProps) {
   const [selectedField, setSelectedField] = useState<Field>(fields[0] || { label: '', index: { local: 0, inplay: 0 } });
   const [filterValue, setFilterValue] = useState('');
-  
-  // Тестовые даты для отладки
-  const [startDate, setStartDate] = useState('2024-11-01');
-  const [endDate, setEndDate] = useState('2024-11-30');
+  const [startDate, setStartDate] = useState(initialDates?.start || '');
+  const [endDate, setEndDate] = useState(initialDates?.end || '');
+
+  // Обновляем даты когда приходят новые initialDates
+  useEffect(() => {
+    if (initialDates) {
+      setStartDate(initialDates.start);
+      setEndDate(initialDates.end);
+    }
+  }, [initialDates]);
 
   const handleApply = () => {
     onApplyFilter(selectedField.index, filterValue);
