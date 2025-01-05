@@ -68,7 +68,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <GlobalStyle />
       <AppContainer>
-        <Title>Data Matching Tool</Title>
+        <Title>Data Matching Tool - Test</Title>
         
         <Section>
           <h2>InPlay Files</h2>
