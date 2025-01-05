@@ -12,14 +12,19 @@ app.get('/api/local-data', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    console.log('Received request:', { startDate, endDate });
+    console.log('Received API request:', { 
+      startDate, 
+      endDate,
+      headers: req.headers
+    });
 
     if (typeof startDate !== 'string' || typeof endDate !== 'string') {
+      console.log('Invalid parameters:', { startDate, endDate });
       return res.status(400).json({ error: 'Invalid date parameters' });
     }
 
     const data = await getLocalData(startDate, endDate);
-    console.log('Sending response:', {
+    console.log('API response ready:', {
       rowCount: data.content.length - 1,
       hasHeaders: !!data.content[0],
       firstDataRow: data.content[1]
@@ -27,7 +32,7 @@ app.get('/api/local-data', async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('API error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
