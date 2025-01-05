@@ -11,7 +11,23 @@ export const pool = mysql.createPool({
 });
 
 export async function getLocalData(startDate: string, endDate: string) {
-  console.log('DB Query params:', { startDate, endDate });
+  console.log('DB Config:', {
+    host: config.db.host,
+    port: config.db.port,
+    user: config.db.user,
+    database: config.db.database
+  });
+
+  const [rows] = await pool.query(
+    'SELECT * FROM transaction_lines WHERE created_at >= ? AND created_at <= ?',
+    [startDate, endDate]
+  );
+
+  console.log('Query result:', {
+    rowCount: (rows as any[]).length,
+    startDate,
+    endDate
+  });
 
   const headers = [
     'payment_history_id',
@@ -48,22 +64,6 @@ export async function getLocalData(startDate: string, endDate: string) {
     'dacast_fee',
     'dacast_item_title'
   ];
-
-  const [rows] = await pool.query(`
-    SELECT 
-      ${headers.join(', ')}
-    FROM transaction_lines
-    WHERE created_at >= ? AND created_at <= ?
-    ORDER BY created_at
-  `, [startDate, endDate]);
-  
-  console.log('Raw DB result:', {
-    rowCount: (rows as any[]).length,
-    firstRow: (rows as any[])[0],
-    sql: `SELECT * FROM transaction_lines 
-          WHERE created_at >= '${startDate}'
-          AND created_at <= '${endDate}'`
-  });
 
   // Преобразуем результат в формат CsvFile
   const result = {
