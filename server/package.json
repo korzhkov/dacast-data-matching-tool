@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon --watch src/**/*.ts --exec ts-node src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "server": "npm run build && node dist/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

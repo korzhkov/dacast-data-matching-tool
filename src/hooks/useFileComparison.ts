@@ -194,11 +194,15 @@ interface FetchLocalDataParams {
   endDate: string;
 }
 
+const API_URL = import.meta.env.DEV 
+  ? 'http://localhost:3001' 
+  : window.location.origin;
+
 async function fetchLocalData({ startDate, endDate }: FetchLocalDataParams): Promise<CsvFile> {
   console.log('Fetching local data...');
   
   const response = await fetch(
-    `http://localhost:3001/api/local-data?startDate=${startDate}&endDate=${endDate}`
+    `${API_URL}/api/local-data?startDate=${startDate}&endDate=${endDate}`
   );
   
   if (!response.ok) {
@@ -207,7 +211,7 @@ async function fetchLocalData({ startDate, endDate }: FetchLocalDataParams): Pro
   
   const data = await response.json();
   console.log('Received data:', {
-    rowCount: data.content.length - 1,  // -1 для заголовков
+    rowCount: data.content.length - 1,
     firstRow: data.content[1],
     lastRow: data.content[data.content.length - 1]
   });

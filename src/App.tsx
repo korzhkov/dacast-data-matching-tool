@@ -49,7 +49,7 @@ const FILTER_FIELDS = [
 ];
 
 function App() {
-  const { processFiles, isLoading, error, stats, parsedFiles, getDifference, selectedFiles, debugInfo } = useFileComparison();
+  const { processFiles, isLoading, error, parsedFiles, selectedFiles, debugInfo } = useFileComparison();
   const { filteredFiles, applyFilter, applyDateFilter, clearFilter } = useFileFilter(parsedFiles);
 
   // Создаем отфильтрованные версии stats и getDifference
