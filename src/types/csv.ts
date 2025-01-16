@@ -37,4 +37,16 @@ export interface Stats {
     inplay: number;
     difference: number;
   };
+}
+
+export interface SqlDebugInfo {
+  start: string;
+  end: string;
+  query: string;
+  actualQuery?: string;
+}
+
+export interface DebugInfo {
+  inplayDates: { start: string; end: string } | null;
+  sqlQuery: SqlDebugInfo | null;
 } 

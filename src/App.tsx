@@ -96,7 +96,7 @@ function App() {
               <p>SQL Query:</p>
               <pre>Start: {debugInfo.sqlQuery?.start}</pre>
               <pre>End: {debugInfo.sqlQuery?.end}</pre>
-              <pre style={{ whiteSpace: 'pre-wrap' }}>Query: {debugInfo.sqlQuery?.query}</pre>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>Actual Query: {debugInfo.sqlQuery?.actualQuery}</pre>
             </div>
           )}
         </Section>

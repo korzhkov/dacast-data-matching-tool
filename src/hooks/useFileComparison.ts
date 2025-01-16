@@ -8,6 +8,7 @@ interface DebugInfo {
     start: string; 
     end: string;
     query: string;
+    actualQuery?: string;
   } | null;
 }
 
@@ -198,27 +199,6 @@ const API_URL = import.meta.env.DEV
   ? 'http://localhost:3001/api'
   : `${window.location.origin}/data-matching/api`;
 
-async function fetchLocalData({ startDate, endDate }: FetchLocalDataParams): Promise<CsvFile> {
-  console.log('Fetching local data with URL:', `${API_URL}/local-data?startDate=${startDate}&endDate=${endDate}`);
-  
-  const response = await fetch(
-    `${API_URL}/local-data?startDate=${startDate}&endDate=${endDate}`
-  );
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch local data');
-  }
-  
-  const data = await response.json();
-  console.log('Received data:', {
-    rowCount: data.content.length - 1,
-    firstRow: data.content[1],
-    lastRow: data.content[data.content.length - 1]
-  });
-  
-  return data;
-}
-
 export function useFileComparison() {
   const [parsedFiles, setParsedFiles] = useState<CsvFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -310,6 +290,7 @@ export function useFileComparison() {
       }
     }));
 
+    // Для конечной даты добавляем 59 секунд, чтобы включить все записи в эту минуту
     const result = {
       startDate: minDate.getFullYear() + '-' + 
                  String(minDate.getMonth() + 1).padStart(2, '0') + '-' +
@@ -321,8 +302,7 @@ export function useFileComparison() {
                String(maxDate.getMonth() + 1).padStart(2, '0') + '-' +
                String(maxDate.getDate()).padStart(2, '0') + ' ' +
                String(maxDate.getHours()).padStart(2, '0') + ':' +
-               String(maxDate.getMinutes()).padStart(2, '0') + ':' +
-               String(maxDate.getSeconds()).padStart(2, '0')
+               String(maxDate.getMinutes()).padStart(2, '0') + ':59'
     };
 
     // Обновляем отладочную информацию
@@ -360,6 +340,33 @@ export function useFileComparison() {
       processFiles(originalFiles.inplay as unknown as FileList, dateFormat);
     }
   }, [originalFiles.inplay, processFiles]);
+
+  const fetchLocalData = async (dateRange: FetchLocalDataParams): Promise<CsvFile> => {
+    try {
+      const response = await fetch(
+        `${API_URL}/local-data?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch local data');
+      }
+      
+      const data = await response.json();
+      
+      setDebugInfo(prev => ({
+        ...prev,
+        sqlQuery: prev.sqlQuery ? {
+          ...prev.sqlQuery,
+          actualQuery: data.actualQuery
+        } : null
+      }));
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching local data:', error);
+      throw error;
+    }
+  };
 
   return {
     processFiles,
